@@ -1,0 +1,53 @@
+name: Update
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+    - cron: '43 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      flake-inputs:
+        description: Also update flake.lock inputs
+        type: boolean
+        default: false
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+
+      - name: Configure git identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Update flake inputs
+        if: github.event.schedule == '43 3 * * 1' || inputs.flake-inputs
+        run: |
+          nix flake update
+          if ! git diff --quiet flake.lock; then
+            git commit -m 'flake.lock: update inputs' flake.lock
+          fi
+
+      - name: Update packages
+        run: |
+          set -euo pipefail
+          changes="$(nix run .#update)"
+          if [[ -n "$changes" ]]; then
+            git add packages
+            git commit -m "$(printf 'packages: update\n\n%s\n' "$changes")"
+          fi
+
+      - name: Check
+        run: nix flake check
+
+      - name: Push
+        run: git push origin HEAD:${{ github.ref_name }}

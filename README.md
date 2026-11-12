@@ -28,6 +28,11 @@ Systems: `x86_64-linux`, `aarch64-linux`, `aarch64-darwin`.
 }
 ```
 
+Do not make this input follow your `nixpkgs`. The packages are built against
+this flake's pinned nixpkgs, which is what CI builds and pushes to the binary
+cache; following another nixpkgs changes every derivation and compiles them
+locally instead. Following `flake-parts` is fine.
+
 `overlays.default` adds every package to a nixpkgs instance under the same
 name, so `pkgs.go` becomes this toolchain. nixpkgs' `buildGoModule` is built
 with a versioned attribute (`go_1_27`), so the overlay does not change it. To

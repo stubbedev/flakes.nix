@@ -8,7 +8,10 @@ runs:
       run: |
         set -euo pipefail
         system="$(nix eval --raw --impure --expr builtins.currentSystem)"
-        mapfile -t installables < <(
+        installables=()
+        while IFS= read -r installable; do
+          installables+=("$installable")
+        done < <(
           nix eval --json ".#checks.${system}" --apply builtins.attrNames \
             | jq -r --arg prefix ".#checks.${system}." '.[] | $prefix + .'
         )

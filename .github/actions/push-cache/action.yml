@@ -1,22 +1,10 @@
 name: Push to cache
-description: Build every flake check for the runner's system and push it to the xilo cache
+description: Build every package for the runner's system and push the closure to the xilo cache
 
 runs:
   using: composite
   steps:
     - shell: bash
-      run: |
-        set -euo pipefail
-        system="$(nix eval --raw --impure --expr builtins.currentSystem)"
-        installables=()
-        while IFS= read -r installable; do
-          installables+=("$installable")
-        done < <(
-          nix eval --json ".#checks.${system}" --apply builtins.attrNames \
-            | jq -r --arg prefix ".#checks.${system}." '.[] | $prefix + .'
-        )
-        if (( ${#installables[@]} == 0 )); then
-          echo "no checks for ${system}" >&2
-          exit 0
-        fi
-        nix build --no-link --print-out-paths "${installables[@]}" | xilo push default/flakes -
+      run: nix build .#cache --out-link result-cache
+    - shell: bash
+      run: xilo push default/flakes ./result-cache

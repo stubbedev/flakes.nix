@@ -25,6 +25,8 @@
 
       imports = [
         ./modules/packages.nix
+        ./modules/update.nix
+        ./modules/shell.nix
         ./modules/formatter.nix
       ];
     };

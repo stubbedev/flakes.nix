@@ -38,17 +38,38 @@ Ad hoc: `nix shell github:stubbedev/flakes.nix#go`.
 
 ## Adding a package
 
-Each directory under `packages/` becomes a package of the same name;
-`modules/packages.nix` finds them automatically.
+Each directory under `packages/` becomes a package of the same name
+(`lib/packages.nix` finds them; `modules/packages.nix` exposes them).
 
 - `packages/<name>/package.nix` (required) is a `callPackage`-style
-  derivation. Set `meta.platforms` so it is only exposed where it builds.
-- `packages/<name>/update.nix` (optional) is a `callPackage`-style function
-  that also receives `systems` (the flake's system list) and returns an
-  executable. `nix run .#update` runs it from the repo root with
-  `packages/<name>` as its only argument. It must rewrite the package's pinned
-  data in place, print one `name: old -> new` line to stdout when it changes
-  something, keep all other output on stderr, and exit non-zero on failure.
+  derivation. It reads its version and per-system hashes from
+  `packages/<name>/hashes.json` and sets `meta.platforms` so it is only exposed
+  where it builds.
+- `packages/<name>/update.nix` (optional) declares where updates come from:
+  a function of `{ lib, systems }` returning `{ type = "<source>"; settings = …; }`.
+  `nix run .#update` passes it to the updater, which rewrites `hashes.json`.
+  Seed a new package with `{"version": "0", "hashes": {}}`: it stays hidden on
+  every system until the first update fills it in.
+
+### The updater
+
+The updater is a Go program (`cmd/update`, `internal/`, standard library only)
+built by `modules/update.nix`, with its tests run by `nix flake check`. For each
+package it loads the pin, asks the package's source for the latest release and
+writes the new pin atomically. It refuses to downgrade, refuses a hash that
+changed for an unchanged version, and keeps going when one package fails, then
+exits non-zero. Each change is printed to stdout as one line, which becomes the
+commit message body. Progress goes to stderr.
+
+Sources live under `internal/source/` and are registered by `type` in
+`cmd/update/main.go`:
+
+| `type`       | Settings                                         | Source |
+| ------------ | ------------------------------------------------ | ------ |
+| `go-release` | `platforms`: Nix system → go.dev `<goos>-<goarch>` | `https://go.dev/dl/?mode=json` |
+
+To support a new kind of upstream, add a package under `internal/source/`
+implementing `update.Source` and register it in `sources`.
 
 To add outputs that aren't packages (dev shells, checks, …), add a flake-parts
 module under `modules/` and import it in `flake.nix`.
@@ -57,8 +78,9 @@ module under `modules/` and import it in `flake.nix`.
 
 ```sh
 nix run .#update    # bump all packages
-nix flake check     # build every package for this system
-nix fmt             # format
+nix flake check     # build every package for this system, run updater tests
+nix fmt             # format Nix and Go
+nix develop         # shell with this flake's Go and gopls
 ```
 
 ## Binary cache
@@ -74,3 +96,5 @@ extra-trusted-public-keys = flakes:0Dr9MyPOvA6va2GVzflJcbrChNoZUeIZflyrww3O+YM=
 ```
 
 The `XILO_TOKEN` repository secret holds a push token scoped to that cache.
+CI builds `.#cache` (all packages for the runner's system linked together) and
+pushes its closure.

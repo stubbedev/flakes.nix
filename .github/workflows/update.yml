@@ -33,19 +33,18 @@ jobs:
 
       - name: Update flake inputs
         if: github.event.schedule == '43 3 * * 1' || inputs.flake-inputs
-        run: |
-          nix flake update
-          if ! git diff --quiet flake.lock; then
-            git commit -m 'flake.lock: update inputs' flake.lock
-          fi
+        run: nix flake update --commit-lock-file
 
       - name: Update packages
+        id: update
+        continue-on-error: true
+        run: nix run .#update -- -root . > "$RUNNER_TEMP/changes"
+
+      - name: Commit package updates
         run: |
-          set -euo pipefail
-          changes="$(nix run .#update)"
-          if [[ -n "$changes" ]]; then
-            git add packages
-            git commit -m "$(printf 'packages: update\n\n%s\n' "$changes")"
+          git add packages
+          if ! git diff --cached --quiet; then
+            git commit --message 'packages: update' --message "$(cat "$RUNNER_TEMP/changes")"
           fi
 
       - name: Check
@@ -56,3 +55,7 @@ jobs:
 
       - name: Push
         run: git push origin HEAD:${{ github.ref_name }}
+
+      - name: Fail if a package could not be updated
+        if: steps.update.outcome == 'failure'
+        run: exit 1

@@ -12,14 +12,18 @@ import (
 
 const releases = `[
   {"version": "go1.28rc1", "stable": false, "files": []},
-  {"version": "go1.27.4", "stable": true, "files": [
-    {"os": "linux", "arch": "amd64", "kind": "archive", "sha256": "7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840"},
-    {"os": "linux", "arch": "amd64", "kind": "installer", "sha256": "00"},
-    {"os": "darwin", "arch": "arm64", "kind": "archive", "sha256": "91a44a2b8a716600ad94a4f143e1561166"},
-    {"os": "", "arch": "", "kind": "source", "sha256": "00"}
+  {"version": "go1.28.1", "stable": true, "files": [
+    {"os": "", "arch": "", "kind": "source", "sha256": "91a44a2b8a716600ad94a4f143e156116620db8828086a6e3602291be9bd0bb4"}
   ]},
-  {"version": "go1.26.9", "stable": true, "files": []}
+  {"version": "go1.27.4", "stable": true, "files": [
+    {"os": "", "arch": "", "kind": "source", "sha256": "7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840"},
+    {"os": "linux", "arch": "amd64", "kind": "archive", "sha256": "91a44a2b8a716600ad94a4f143e156116620db8828086a6e3602291be9bd0bb4"},
+    {"os": "darwin", "arch": "arm64", "kind": "archive", "sha256": "91a44a2b"}
+  ]},
+  {"version": "go1.27.3", "stable": true, "files": []}
 ]`
+
+const hashA = "sha256-ciZzbCM5cZzaKPvzpU1xqmO87+N26YzvAANCaNqySEA="
 
 func serve(t *testing.T, body string) string {
 	t.Helper()
@@ -30,21 +34,21 @@ func serve(t *testing.T, body string) string {
 	return srv.URL
 }
 
-func newSource(t *testing.T, url string, platforms map[string]string) *Source {
+func newSource(t *testing.T, url string, s Settings) *Source {
 	t.Helper()
-	raw, err := json.Marshal(Settings{Platforms: platforms})
+	raw, err := json.Marshal(s)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := New(raw, fetch.Client{HTTP: http.DefaultClient}, url)
+	src, err := New(raw, fetch.Client{HTTP: http.DefaultClient}, url)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return s
+	return src
 }
 
-func TestLatestPicksNewestStableArchive(t *testing.T) {
-	s := newSource(t, serve(t, releases), map[string]string{"x86_64-linux": "linux-amd64"})
+func TestLatestStaysInSeries(t *testing.T) {
+	s := newSource(t, serve(t, releases), Settings{Series: "1.27", Files: map[string]Selector{"source": {Kind: "source"}}})
 	got, err := s.Latest(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -52,35 +56,52 @@ func TestLatestPicksNewestStableArchive(t *testing.T) {
 	if got.Version.String() != "1.27.4" {
 		t.Errorf("version = %s, want 1.27.4", got.Version)
 	}
-	const want = "sha256-ciZzbCM5cZzaKPvzpU1xqmO87+N26YzvAANCaNqySEA="
-	if got.Hashes["x86_64-linux"] != want || len(got.Hashes) != 1 {
-		t.Errorf("hashes = %v, want only x86_64-linux = %s", got.Hashes, want)
+	if got.Hashes["source"] != hashA || len(got.Hashes) != 1 {
+		t.Errorf("hashes = %v, want only source = %s", got.Hashes, hashA)
 	}
 }
 
-func TestLatestFailsOnMissingPlatform(t *testing.T) {
-	s := newSource(t, serve(t, releases), map[string]string{"aarch64-linux": "linux-arm64"})
+func TestLatestSelectsByKindOSArch(t *testing.T) {
+	s := newSource(t, serve(t, releases), Settings{Series: "1.27", Files: map[string]Selector{"x86_64-linux": {Kind: "archive", OS: "linux", Arch: "amd64"}}})
+	got, err := s.Latest(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Hashes["x86_64-linux"] != "sha256-kaRKK4pxZgCtlKTxQ+FWEWYg24goCGpuNgIpG+m9C7Q=" {
+		t.Errorf("hashes = %v", got.Hashes)
+	}
+}
+
+func TestLatestFailsOnMissingFile(t *testing.T) {
+	s := newSource(t, serve(t, releases), Settings{Series: "1.27", Files: map[string]Selector{"aarch64-linux": {Kind: "archive", OS: "linux", Arch: "arm64"}}})
 	if _, err := s.Latest(context.Background()); err == nil {
-		t.Fatal("Latest succeeded, want error for missing platform")
+		t.Fatal("Latest succeeded, want error for missing file")
 	}
 }
 
 func TestLatestFailsOnMalformedHash(t *testing.T) {
-	s := newSource(t, serve(t, releases), map[string]string{"aarch64-darwin": "darwin-arm64"})
+	s := newSource(t, serve(t, releases), Settings{Series: "1.27", Files: map[string]Selector{"aarch64-darwin": {Kind: "archive", OS: "darwin", Arch: "arm64"}}})
 	if _, err := s.Latest(context.Background()); err == nil {
 		t.Fatal("Latest succeeded, want error for truncated sha256")
 	}
 }
 
-func TestLatestFailsWithoutStableRelease(t *testing.T) {
-	s := newSource(t, serve(t, `[{"version": "go1.28rc1", "stable": false, "files": []}]`), map[string]string{"x86_64-linux": "linux-amd64"})
+func TestLatestFailsWithoutReleaseInSeries(t *testing.T) {
+	s := newSource(t, serve(t, releases), Settings{Series: "1.29", Files: map[string]Selector{"source": {Kind: "source"}}})
 	if _, err := s.Latest(context.Background()); err == nil {
 		t.Fatal("Latest succeeded, want error")
 	}
 }
 
 func TestNewRejectsInvalidSettings(t *testing.T) {
-	for _, raw := range []string{`{}`, `{"platforms":{}}`, `{"platforms":{"x86_64-linux":"Linux amd64"}}`, `{"platforms":{"x":"linux-amd64"},"extra":1}`} {
+	for _, raw := range []string{
+		`{}`,
+		`{"series":"1.27"}`,
+		`{"series":"1.27","files":{}}`,
+		`{"series":"1.27","files":{"source":{}}}`,
+		`{"series":"latest","files":{"source":{"kind":"source"}}}`,
+		`{"series":"1.27","files":{"source":{"kind":"source"}},"extra":1}`,
+	} {
 		if _, err := New(json.RawMessage(raw), fetch.New(), DownloadsURL); err == nil {
 			t.Errorf("New(%s) succeeded, want error", raw)
 		}

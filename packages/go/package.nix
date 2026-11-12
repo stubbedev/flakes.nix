@@ -1,42 +1,36 @@
 {
   lib,
   stdenv,
+  go_latest,
   fetchurl,
+  callPackage,
+  testers,
 }:
 let
-  inherit (lib.importJSON ./hashes.json) version hashes;
-  inherit (stdenv.hostPlatform) system;
-  goPlatform = import ./platform.nix stdenv.hostPlatform;
+  pin = lib.importJSON ./hashes.json;
+  series = lib.versions.majorMinor pin.version;
+  baseSeries = lib.versions.majorMinor go_latest.version;
 in
-stdenv.mkDerivation {
-  pname = "go";
-  inherit version;
-
-  src = fetchurl {
-    url = "https://go.dev/dl/go${version}.${goPlatform}.tar.gz";
-    hash = hashes.${system} or (throw "go: no hash for ${system} in hashes.json");
-  };
-
-  dontStrip = stdenv.hostPlatform.isDarwin;
-
-  installPhase = ''
-    runHook preInstall
-    mkdir -p $out/share/go $out/bin
-    cp -r . $out/share/go
-    ln -s $out/share/go/bin/go $out/bin/go
-    ln -s $out/share/go/bin/gofmt $out/bin/gofmt
-    runHook postInstall
-  '';
-
-  inherit (stdenv.hostPlatform.go) GOOS GOARCH;
-  CGO_ENABLED = 1;
-
-  meta = {
-    description = "Latest stable Go toolchain (official prebuilt binary)";
-    homepage = "https://go.dev/";
-    license = lib.licenses.bsd3;
-    sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];
-    platforms = lib.attrNames hashes;
-    mainProgram = "go";
-  };
-}
+assert lib.assertMsg (series == baseSeries)
+  "go ${pin.version} needs a nixpkgs go_latest from the ${series} series to reuse its patches, but nixpkgs has ${go_latest.version}";
+go_latest.overrideAttrs (
+  finalAttrs: prev: {
+    version = pin.version;
+    src = fetchurl {
+      url = "https://go.dev/dl/go${finalAttrs.version}.src.tar.gz";
+      hash = pin.hashes.source;
+    };
+    passthru = prev.passthru // {
+      tests = {
+        version = testers.testVersion {
+          package = finalAttrs.finalPackage;
+          command = "go version";
+          version = "go${finalAttrs.version}";
+        };
+      }
+      // lib.optionalAttrs stdenv.hostPlatform.isLinux {
+        dynamic-import = callPackage ./tests/dynamic-import.nix { go = finalAttrs.finalPackage; };
+      };
+    };
+  }
+)

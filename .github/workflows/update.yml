@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-nix
@@ -47,14 +48,27 @@ jobs:
             git commit --message 'packages: update' --message "$(cat "$RUNNER_TEMP/changes")"
           fi
 
+      - name: Count new commits
+        id: pending
+        run: echo "commits=$(git rev-list --count "origin/${GITHUB_REF_NAME}..HEAD")" >> "$GITHUB_OUTPUT"
+
       - name: Check
+        if: steps.pending.outputs.commits != '0'
         run: nix flake check
 
       - name: Push to cache
+        if: steps.pending.outputs.commits != '0'
         uses: ./.github/actions/push-cache
 
       - name: Push
-        run: git push origin HEAD:${{ github.ref_name }}
+        if: steps.pending.outputs.commits != '0'
+        run: git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Build and cache the other systems
+        if: steps.pending.outputs.commits != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref "${GITHUB_REF_NAME}"
 
       - name: Fail if a package could not be updated
         if: steps.update.outcome == 'failure'

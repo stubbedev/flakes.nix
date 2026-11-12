@@ -17,7 +17,11 @@ in
     in
     {
       packages = available;
-      checks = available;
+      checks =
+        available
+        // lib.concatMapAttrs (
+          name: drv: lib.mapAttrs' (test: lib.nameValuePair "${name}-${test}") (drv.passthru.tests or { })
+        ) available;
       legacyPackages.cache = pkgs.linkFarm "flakes-cache" available;
     };
 }

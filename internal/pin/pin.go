@@ -62,12 +62,12 @@ func Load(path string) (Pin, error) {
 		return Pin{}, fmt.Errorf("load pin %s: %w", path, err)
 	}
 	hashes := make(map[string]SRI, len(doc.Hashes))
-	for system, h := range doc.Hashes {
+	for key, h := range doc.Hashes {
 		sri, err := ParseSRI(h)
 		if err != nil {
-			return Pin{}, fmt.Errorf("load pin %s: system %s: %w", path, system, err)
+			return Pin{}, fmt.Errorf("load pin %s: file %s: %w", path, key, err)
 		}
-		hashes[system] = sri
+		hashes[key] = sri
 	}
 	return Pin{Version: v, Hashes: hashes}, nil
 }
@@ -77,8 +77,8 @@ func Save(path string, p Pin) (err error) {
 		return fmt.Errorf("save pin %s: no hashes", path)
 	}
 	doc := document{Version: p.Version.String(), Hashes: make(map[string]string, len(p.Hashes))}
-	for system, h := range p.Hashes {
-		doc.Hashes[system] = string(h)
+	for key, h := range p.Hashes {
+		doc.Hashes[key] = string(h)
 	}
 	data, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {

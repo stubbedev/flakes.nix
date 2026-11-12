@@ -118,13 +118,13 @@ func TestRunRefusesChangedHashForSameVersion(t *testing.T) {
 	}
 }
 
-func TestRunAddsNewSystemAtSameVersion(t *testing.T) {
+func TestRunAddsNewFileAtSameVersion(t *testing.T) {
 	cur := mustPin(t, "1.27.4", map[string]pin.SRI{"x86_64-linux": hashA})
 	res, saved, _ := run(t, &cur, fixed{pin: mustPin(t, "1.27.4", map[string]pin.SRI{"x86_64-linux": hashA, "aarch64-darwin": hashB})})
 	if res.Failures != nil {
 		t.Fatal(res.Failures)
 	}
-	if len(res.Changes) != 1 || res.Changes[0].String() != "tool: 1.27.4, systems [x86_64-linux] -> [aarch64-darwin x86_64-linux]" {
+	if len(res.Changes) != 1 || res.Changes[0].String() != "tool: 1.27.4, files [x86_64-linux] -> [aarch64-darwin x86_64-linux]" {
 		t.Fatalf("changes = %v", res.Changes)
 	}
 	if len(saved.Hashes) != 2 {

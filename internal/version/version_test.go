@@ -36,3 +36,29 @@ func TestParseRejectsInvalid(t *testing.T) {
 		}
 	}
 }
+
+func TestHasPrefix(t *testing.T) {
+	cases := []struct {
+		v, prefix string
+		want      bool
+	}{
+		{"1.27.4", "1.27", true},
+		{"1.27.4", "1.27.4", true},
+		{"1.28.0", "1.27", false},
+		{"1.2", "1.27", false},
+		{"1.27", "1.27.0", false},
+	}
+	for _, c := range cases {
+		v, err := Parse(c.v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := Parse(c.prefix)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := v.HasPrefix(p); got != c.want {
+			t.Errorf("%s.HasPrefix(%s) = %v, want %v", c.v, c.prefix, got, c.want)
+		}
+	}
+}

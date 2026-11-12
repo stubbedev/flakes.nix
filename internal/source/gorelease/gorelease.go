@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/stubbedev/flakes.nix/internal/fetch"
@@ -15,16 +14,22 @@ import (
 
 const DownloadsURL = "https://go.dev/dl/?mode=json"
 
-var platformPattern = regexp.MustCompile(`^[a-z0-9]+-[a-z0-9]+$`)
+type Selector struct {
+	Kind string `json:"kind"`
+	OS   string `json:"os"`
+	Arch string `json:"arch"`
+}
 
 type Settings struct {
-	Platforms map[string]string `json:"platforms"`
+	Series string              `json:"series"`
+	Files  map[string]Selector `json:"files"`
 }
 
 type Source struct {
-	url       string
-	client    fetch.Client
-	platforms map[string]string
+	url    string
+	client fetch.Client
+	series version.Version
+	files  map[string]Selector
 }
 
 func New(raw json.RawMessage, client fetch.Client, url string) (*Source, error) {
@@ -34,15 +39,19 @@ func New(raw json.RawMessage, client fetch.Client, url string) (*Source, error) 
 	if err := dec.Decode(&s); err != nil {
 		return nil, fmt.Errorf("go release settings: %w", err)
 	}
-	if len(s.Platforms) == 0 {
-		return nil, fmt.Errorf("go release settings: no platforms")
+	series, err := version.Parse(s.Series)
+	if err != nil {
+		return nil, fmt.Errorf("go release settings: series: %w", err)
 	}
-	for system, platform := range s.Platforms {
-		if !platformPattern.MatchString(platform) {
-			return nil, fmt.Errorf("go release settings: system %s: platform %q is not <goos>-<goarch>", system, platform)
+	if len(s.Files) == 0 {
+		return nil, fmt.Errorf("go release settings: no files")
+	}
+	for key, sel := range s.Files {
+		if sel.Kind == "" {
+			return nil, fmt.Errorf("go release settings: file %s: kind is required", key)
 		}
 	}
-	return &Source{url: url, client: client, platforms: s.Platforms}, nil
+	return &Source{url: url, client: client, series: series, files: s.Files}, nil
 }
 
 type release struct {
@@ -63,7 +72,7 @@ func (s *Source) Latest(ctx context.Context) (pin.Pin, error) {
 	if err := s.client.JSON(ctx, s.url, &releases); err != nil {
 		return pin.Pin{}, fmt.Errorf("list go releases: %w", err)
 	}
-	newest, err := newestStable(releases)
+	newest, v, err := s.newestStable(releases)
 	if err != nil {
 		return pin.Pin{}, err
 	}
@@ -71,14 +80,10 @@ func (s *Source) Latest(ctx context.Context) (pin.Pin, error) {
 	if err != nil {
 		return pin.Pin{}, err
 	}
-	v, err := version.Parse(strings.TrimPrefix(newest.Version, "go"))
-	if err != nil {
-		return pin.Pin{}, fmt.Errorf("go release %s: %w", newest.Version, err)
-	}
 	return pin.Pin{Version: v, Hashes: hashes}, nil
 }
 
-func newestStable(releases []release) (release, error) {
+func (s *Source) newestStable(releases []release) (release, version.Version, error) {
 	var (
 		best    release
 		bestVer version.Version
@@ -90,35 +95,38 @@ func newestStable(releases []release) (release, error) {
 		}
 		v, err := version.Parse(strings.TrimPrefix(r.Version, "go"))
 		if err != nil {
-			return release{}, fmt.Errorf("go release %q: %w", r.Version, err)
+			return release{}, version.Version{}, fmt.Errorf("go release %q: %w", r.Version, err)
+		}
+		if !v.HasPrefix(s.series) {
+			continue
 		}
 		if !found || v.Compare(bestVer) > 0 {
 			best, bestVer, found = r, v, true
 		}
 	}
 	if !found {
-		return release{}, fmt.Errorf("list go releases: no stable release")
+		return release{}, version.Version{}, fmt.Errorf("list go releases: no stable release in the %s series", s.series)
 	}
-	return best, nil
+	return best, bestVer, nil
 }
 
 func (s *Source) hashes(r release) (map[string]pin.SRI, error) {
-	hashes := make(map[string]pin.SRI, len(s.platforms))
-	for system, platform := range s.platforms {
+	hashes := make(map[string]pin.SRI, len(s.files))
+	for key, sel := range s.files {
 		var matches []file
 		for _, f := range r.Files {
-			if f.Kind == "archive" && f.OS+"-"+f.Arch == platform {
+			if f.Kind == sel.Kind && f.OS == sel.OS && f.Arch == sel.Arch {
 				matches = append(matches, f)
 			}
 		}
 		if len(matches) != 1 {
-			return nil, fmt.Errorf("go release %s: want one archive for %s (%s), found %d", r.Version, platform, system, len(matches))
+			return nil, fmt.Errorf("go release %s: want one %+v file for %s, found %d", r.Version, sel, key, len(matches))
 		}
 		sri, err := pin.SHA256FromHex(matches[0].SHA256)
 		if err != nil {
-			return nil, fmt.Errorf("go release %s: %s archive: %w", r.Version, platform, err)
+			return nil, fmt.Errorf("go release %s: file %s: %w", r.Version, key, err)
 		}
-		hashes[system] = sri
+		hashes[key] = sri
 	}
 	return hashes, nil
 }

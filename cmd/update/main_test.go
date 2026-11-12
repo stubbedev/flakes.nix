@@ -36,7 +36,7 @@ func TestLoadPackagesRejectsUnknownFields(t *testing.T) {
 }
 
 func TestLoadPackagesBuildsGoRelease(t *testing.T) {
-	path := writeConfig(t, `{"packages":[{"name":"go","pin":"packages/go/hashes.json","source":{"type":"go-release","settings":{"platforms":{"x86_64-linux":"linux-amd64"}}}}]}`)
+	path := writeConfig(t, `{"packages":[{"name":"go","pin":"packages/go/hashes.json","source":{"type":"go-release","settings":{"series":"1.27","files":{"source":{"kind":"source"}}}}}]}`)
 	pkgs, err := loadPackages(path, fetch.New())
 	if err != nil {
 		t.Fatal(err)

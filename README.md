@@ -8,7 +8,7 @@ pinned versions and hashes, runs `nix flake check`, and pushes to `main`.
 
 | Package | Source |
 | ------- | ------ |
-| `go`    | Latest stable official Go binary release from go.dev |
+| `go`    | Latest Go patch release, built from source with nixpkgs' `go_latest` derivation and patches |
 
 Systems: `x86_64-linux`, `aarch64-linux`, `aarch64-darwin`.
 
@@ -36,6 +36,14 @@ build a module with this toolchain:
 
 Ad hoc: `nix shell github:stubbedev/flakes.nix#go`.
 
+`go` is nixpkgs' own Go derivation with only the version and source swapped,
+so it keeps nixpkgs' patches. The official go.dev binaries lack the patch that
+makes the linker honour `GO_LDSO`, which leaves `CGO_ENABLED=0` binaries that
+use purego with a `/lib64` interpreter that does not exist on NixOS. Updates
+follow the minor series of nixpkgs' `go_latest`, because its patches are
+written per minor release; a new minor arrives with the weekly `flake.lock`
+update.
+
 ## Adding a package
 
 Each directory under `packages/` becomes a package of the same name
@@ -48,8 +56,8 @@ Each directory under `packages/` becomes a package of the same name
 - `packages/<name>/update.nix` (optional) declares where updates come from:
   a function of `{ lib, systems }` returning `{ type = "<source>"; settings = …; }`.
   `nix run .#update` passes it to the updater, which rewrites `hashes.json`.
-  Seed a new package with `{"version": "0", "hashes": {}}`: it stays hidden on
-  every system until the first update fills it in.
+  Seed a new package's `hashes.json` with any known-good older release; the
+  first update bumps it.
 
 ### The updater
 
@@ -66,7 +74,7 @@ Sources live under `internal/source/` and are registered by `type` in
 
 | `type`       | Settings                                         | Source |
 | ------------ | ------------------------------------------------ | ------ |
-| `go-release` | `platforms`: Nix system → go.dev `<goos>-<goarch>` | `https://go.dev/dl/?mode=json` |
+| `go-release` | `series`: minor series to follow; `files`: key → `{ kind, os, arch }` selecting go.dev files | `https://go.dev/dl/?mode=json` |
 
 To support a new kind of upstream, add a package under `internal/source/`
 implementing `update.Source` and register it in `sources`.

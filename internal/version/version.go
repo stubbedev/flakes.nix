@@ -50,3 +50,15 @@ func component(parts []uint64, i int) uint64 {
 	}
 	return 0
 }
+
+func (v Version) HasPrefix(prefix Version) bool {
+	if len(prefix.parts) > len(v.parts) {
+		return false
+	}
+	for i, p := range prefix.parts {
+		if v.parts[i] != p {
+			return false
+		}
+	}
+	return true
+}

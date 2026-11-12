@@ -1,4 +1,4 @@
-{ lib, config, ... }:
+{ lib, ... }:
 let
   packages = import ../lib/packages.nix { inherit lib; };
 in
@@ -27,10 +27,7 @@ in
           packages = map (name: {
             inherit name;
             pin = packages.pinPath name;
-            source = import (packages.updateFile name) {
-              inherit lib;
-              inherit (config) systems;
-            };
+            source = import (packages.updateFile name) { inherit lib pkgs; };
           }) packages.updatable;
         }
       );

@@ -29,7 +29,7 @@ type Change struct {
 
 func (c Change) String() string {
 	if c.From.Version.Compare(c.To.Version) == 0 {
-		return fmt.Sprintf("%s: %s, systems %v -> %v", c.Package, c.To.Version, systems(c.From), systems(c.To))
+		return fmt.Sprintf("%s: %s, files %v -> %v", c.Package, c.To.Version, fileKeys(c.From), fileKeys(c.To))
 	}
 	return fmt.Sprintf("%s: %s -> %s", c.Package, c.From.Version, c.To.Version)
 }
@@ -87,14 +87,14 @@ func compare(current, latest pin.Pin) (bool, error) {
 	case 1:
 		return true, nil
 	}
-	for system, h := range latest.Hashes {
-		if old, ok := current.Hashes[system]; ok && old != h {
-			return false, fmt.Errorf("upstream hash for %s %s changed from %s to %s without a version change", current.Version, system, old, h)
+	for key, h := range latest.Hashes {
+		if old, ok := current.Hashes[key]; ok && old != h {
+			return false, fmt.Errorf("upstream hash for %s %s changed from %s to %s without a version change", current.Version, key, old, h)
 		}
 	}
 	return !maps.Equal(current.Hashes, latest.Hashes), nil
 }
 
-func systems(p pin.Pin) []string {
+func fileKeys(p pin.Pin) []string {
 	return slices.Sorted(maps.Keys(p.Hashes))
 }

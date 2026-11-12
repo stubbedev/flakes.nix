@@ -1,7 +1,8 @@
-{ lib, systems }:
+{ lib, pkgs }:
 {
   type = "go-release";
-  settings.platforms = lib.genAttrs systems (
-    system: import ./platform.nix (lib.systems.elaborate system)
-  );
+  settings = {
+    series = lib.versions.majorMinor pkgs.go_latest.version;
+    files.source.kind = "source";
+  };
 }

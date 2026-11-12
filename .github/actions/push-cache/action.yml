@@ -1,0 +1,19 @@
+name: Push to cache
+description: Build every flake check for the runner's system and push it to the xilo cache
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        system="$(nix eval --raw --impure --expr builtins.currentSystem)"
+        mapfile -t installables < <(
+          nix eval --json ".#checks.${system}" --apply builtins.attrNames \
+            | jq -r --arg prefix ".#checks.${system}." '.[] | $prefix + .'
+        )
+        if (( ${#installables[@]} == 0 )); then
+          echo "no checks for ${system}" >&2
+          exit 0
+        fi
+        nix build --no-link --print-out-paths "${installables[@]}" | xilo push default/flakes -

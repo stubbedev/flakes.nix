@@ -60,3 +60,17 @@ nix run .#update    # bump all packages
 nix flake check     # build every package for this system
 nix fmt             # format
 ```
+
+## Binary cache
+
+CI pushes every package it builds (x86_64-linux, aarch64-linux, aarch64-darwin)
+to the xilo cache at `https://nix.stubbe.dev/c/default/flakes`. The flake's
+`nixConfig` offers it to `nix shell`/`nix build` run directly against this
+flake. A consuming flake has to list it in its own `nixConfig` or `nix.conf`:
+
+```
+extra-substituters = https://nix.stubbe.dev/c/default/flakes
+extra-trusted-public-keys = flakes:0Dr9MyPOvA6va2GVzflJcbrChNoZUeIZflyrww3O+YM=
+```
+
+The `XILO_TOKEN` repository secret holds a push token scoped to that cache.

@@ -22,7 +22,9 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
+      - uses: ./.github/actions/setup-nix
+        with:
+          xilo-token: ${{ secrets.XILO_TOKEN }}
 
       - name: Configure git identity
         run: |
@@ -48,6 +50,9 @@ jobs:
 
       - name: Check
         run: nix flake check
+
+      - name: Push to cache
+        uses: ./.github/actions/push-cache
 
       - name: Push
         run: git push origin HEAD:${{ github.ref_name }}

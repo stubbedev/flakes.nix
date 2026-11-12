@@ -17,6 +17,10 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
+      - uses: ./.github/actions/setup-nix
+        with:
+          xilo-token: ${{ github.event_name != 'pull_request' && secrets.XILO_TOKEN || '' }}
       - run: nix flake check
       - run: nix fmt -- --ci
+      - if: github.event_name != 'pull_request'
+        uses: ./.github/actions/push-cache

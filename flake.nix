@@ -1,6 +1,11 @@
 {
   description = "Auto-updated development tool packages";
 
+  nixConfig = {
+    extra-substituters = [ "https://nix.stubbe.dev/c/default/flakes" ];
+    extra-trusted-public-keys = [ "flakes:0Dr9MyPOvA6va2GVzflJcbrChNoZUeIZflyrww3O+YM=" ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts = {

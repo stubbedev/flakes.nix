@@ -1,0 +1,17 @@
+name: Set up Nix
+description: Install Nix and use the xilo cache as a substituter, logged in for pushes when a token is given
+
+inputs:
+  xilo-token:
+    description: Push token for the xilo cache; empty for pull-only
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - uses: cachix/install-nix-action@v31
+    - uses: stubbedev/xilo@v1
+      with:
+        url: https://nix.stubbe.dev
+        cache: default/flakes
+        token: ${{ inputs.xilo-token }}

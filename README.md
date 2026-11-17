@@ -99,13 +99,13 @@ nix develop         # shell with this flake's Go and gopls
 ## Binary cache
 
 CI pushes every package it builds (x86_64-linux, aarch64-linux, aarch64-darwin)
-to the xilo cache at `https://nix.stubbe.dev/c/default/flakes`. The flake's
+to the xilo cache at `https://xilos.dev/c/stubbedev/main`. The flake's
 `nixConfig` offers it to `nix shell`/`nix build` run directly against this
 flake. A consuming flake has to list it in its own `nixConfig` or `nix.conf`:
 
 ```
-extra-substituters = https://nix.stubbe.dev/c/default/flakes
-extra-trusted-public-keys = flakes:0Dr9MyPOvA6va2GVzflJcbrChNoZUeIZflyrww3O+YM=
+extra-substituters = https://xilos.dev/c/stubbedev/main
+extra-trusted-public-keys = xilos.dev/stubbedev/main-1:397R6S49v/FSvP+mZ3HlKrVN1KXhgzHIEIHxA/UuG6Y=
 ```
 
 The `XILO_TOKEN` repository secret holds a push token scoped to that cache.

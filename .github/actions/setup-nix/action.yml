@@ -12,6 +12,6 @@ runs:
     - uses: cachix/install-nix-action@v31
     - uses: stubbedev/xilo@v1
       with:
-        url: https://nix.stubbe.dev
-        cache: default/flakes
+        url: https://xilos.dev
+        cache: stubbedev/main
         token: ${{ inputs.xilo-token }}

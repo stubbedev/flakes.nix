@@ -22,5 +22,6 @@ jobs:
           xilo-token: ${{ github.event_name != 'pull_request' && secrets.XILO_TOKEN || '' }}
       - run: nix flake check
       - run: nix fmt -- --ci
-      - if: github.event_name != 'pull_request'
-        uses: ./.github/actions/push-cache
+      - name: Build every package for the cache
+        if: github.event_name != 'pull_request'
+        run: nix build .#cache --no-link

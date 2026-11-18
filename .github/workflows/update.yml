@@ -56,9 +56,9 @@ jobs:
         if: steps.pending.outputs.commits != '0'
         run: nix flake check
 
-      - name: Push to cache
+      - name: Build every package for the cache
         if: steps.pending.outputs.commits != '0'
-        uses: ./.github/actions/push-cache
+        run: nix build .#cache --no-link
 
       - name: Push
         if: steps.pending.outputs.commits != '0'
